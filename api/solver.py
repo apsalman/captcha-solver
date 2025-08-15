@@ -33,7 +33,7 @@ def solve_captcha():
         image_url = data['imageUrl']
         question_text = data['questionText']
 
-        model = genai.GenerativeModel('gemini-1.5-flash-latest')
+        model = genai.GenerativeModel('gemini-1.5-pro-latest')
         
         response = requests.get(image_url)
         response.raise_for_status()
