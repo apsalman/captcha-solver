@@ -1,0 +1,14 @@
+{
+  "builds": [
+    {
+      "src": "api/solver.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/solver",
+      "dest": "api/solver.py"
+    }
+  ]
+}
