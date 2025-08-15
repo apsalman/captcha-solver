@@ -11,24 +11,18 @@ app = Flask(__name__)
 @app.route('/api/solver', methods=['POST', 'OPTIONS'])
 def solve_captcha():
     if request.method == 'OPTIONS':
-        headers = {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type',
-        }
+        headers = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' }
         return ('', 204, headers)
 
     headers = { 'Access-Control-Allow-Origin': '*' }
     
     try:
         api_key = os.environ.get("GOOGLE_API_KEY")
-        if not api_key:
-            raise ValueError("GOOGLE_API_KEY 환경 변수가 설정되지 않았습니다.")
+        if not api_key: raise ValueError("GOOGLE_API_KEY 환경 변수가 설정되지 않았습니다.")
         genai.configure(api_key=api_key)
 
         data = request.get_json()
-        if not data or 'imageUrl' not in data or 'questionText' not in data:
-            raise ValueError("imageUrl과 questionText가 요청에 포함되지 않았습니다.")
+        if not data or 'imageUrl' not in data or 'questionText' not in data: raise ValueError("imageUrl과 questionText가 요청에 포함되지 않았습니다.")
         
         image_url = data['imageUrl']
         question_text = data['questionText']
@@ -39,29 +33,36 @@ def solve_captcha():
         response.raise_for_status()
         img = Image.open(BytesIO(response.content))
 
-        # --- 여기가 수정된 부분입니다: AI를 더 똑똑하게 만드는 새로운 프롬프트 ---
+        # --- 여기가 수정된 부분입니다: 새로운 문제 유형을 AI에게 가르칩니다 ---
         prompt = f"""
-        당신은 OCR과 추론을 사용하는 CAPTCHA 해결 전문가입니다.
-        주어진 질문과 지도 이미지를 보고, '빈칸'에 들어갈 글자만 정확하게 찾아내세요.
+        당신은 두 가지 유형의 시각적 CAPTCHA를 해결하는 초정밀 AI 전문가입니다.
 
-        **작업 규칙:**
-        1. 질문 텍스트에서 '빈칸'의 위치와 앞뒤 글자를 파악합니다. ('문제'와 같은 불필요한 단어는 무시하세요.)
-        2. 지도 이미지에서 질문의 패턴과 일치하는 전체 단어를 찾습니다. (예: '광진', '라'가 보이면 '광진빌라'를 찾습니다.)
-        3. 찾아낸 전체 단어에서 질문에 주어진 부분을 제외하여 '빈칸'에 들어갈 글자를 알아냅니다.
-        4. 오직 '빈칸'에 들어갈 글자만 응답해야 합니다. 다른 설명, 따옴표, 줄바꿈은 절대 포함하지 마세요.
-        5. 이미지는 반드시 지도에서 찾아낸 이미지이므로 지도에 들어갈 일반적인 단어의 일부가 빈칸으로 지정됩니다.
+        **[임무]**
+        주어진 질문의 유형을 먼저 파악한 뒤, 그에 맞는 작업 절차에 따라 문제를 해결하세요.
 
-        **다양한 질문 유형 예시:**
-        - 질문이 "광진 빈칸라" 이고 이미지에 "광진빌라"가 있다면, 정답은 "빌" 입니다.
-        - 질문이 "빈칸 원빌딩" 이고 이미지에 "청원빌딩"이 있다면, 정답은 "청" 입니다.
-        - 질문이 "이화산업빈칸" 이고 이미지에 "이화산업빌딩"이 있다면, 정답은 "빌딩" 입니다.
-        - 질문이 "빈칸 나은행" 이고 이미지에 "하나은행"이 있다면, 정답은 "하" 입니다.
-        - 질문이 "빈칸 K스카이뷰" 이고 이미지에 "인천SK스카이뷰"가 있다면, 정답은 "인천S" 입니다.
-        - 질문이 "엔에스파크아빈칸" 이고 이미지에 "엔에스파크아파트"가 있다면, 정답은 "파트" 입니다.
-        - 질문이 "대빈칸 케미칼" 이고 이미지에 "대원케미칼"이 있다면, 정답은 "원"입니다.
+        ---
+        **[유형 1: 빈칸 채우기]**
+        *   **질문 형태:** "광진 빈칸 라", "빈칸 원빌딩" 등 '빈칸' 이라는 단어가 포함됨.
+        *   **작업 절차:**
+            1. '빈칸'을 기준으로 **앞부분(prefix)**과 **뒷부분(suffix)**을 분리합니다.
+            2. 이미지에서 `prefix`로 시작하고 `suffix`로 끝나는 **완전한 단어**를 찾습니다.
+            3. 찾아낸 단어에서 `prefix`와 `suffix`를 제거하여 '빈칸'에 들어갈 부분만 추출합니다.
 
-        **--- 현재 문제 ---**
-        질문: "{question_text}"
+        **[유형 2: 전체 명칭 찾기]**
+        *   **질문 형태:** "아파트의 전체 명칭을 입력해주세요", "학교의 전체 명칭을..." 등 특정 대상의 '전체 명칭'을 요구함.
+        *   **작업 절차:**
+            1. 질문에서 요구하는 대상(예: 아파트, 학교, 약국)이 무엇인지 파악합니다.
+            2. 이미지에서 해당 대상 중 가장 눈에 띄거나 명확한 것의 **정확한 전체 이름**을 읽어냅니다.
+            3. 읽어낸 전체 이름을 그대로 추출합니다.
+
+        **[출력 규칙]**
+        *   어떤 유형의 문제든, 최종적으로 추출한 정답 텍스트만 출력해야 합니다.
+        *   다른 어떤 설명, 따옴표, 기호도 절대 포함하지 마세요.
+
+        ---
+        **[실제 문제 해결]**
+        위의 지침을 완벽하게 따라서 아래 문제를 해결하세요.
+        **질문:** "{question_text}"
         """
 
         api_response = model.generate_content([prompt, img])
@@ -70,7 +71,5 @@ def solve_captcha():
         return jsonify({"answer": answer}), 200, headers
 
     except Exception as e:
-        print("--- ERROR ---")
-        print(traceback.format_exc())
-        print("-------------")
+        print("--- ERROR ---"); print(traceback.format_exc()); print("-------------")
         return jsonify({"error": f"서버 내부 오류: {type(e).__name__} - {str(e)}"}), 500, headers
