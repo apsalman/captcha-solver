@@ -37,7 +37,7 @@ def solve_captcha():
         question_text = data['questionText']
 
         # 모델을 생성할 때 안전 설정을 함께 전달합니다.
-        model = genai.GenerativeModel('gemini-1.5-flash-latest', safety_settings=safety_settings)
+        model = genai.GenerativeModel('gemini-2.0-flash-latest', safety_settings=safety_settings)
         
         response = requests.get(image_url)
         response.raise_for_status()
