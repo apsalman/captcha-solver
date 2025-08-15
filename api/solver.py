@@ -6,11 +6,8 @@ from PIL import Image
 from io import BytesIO
 import traceback
 
-# Flask 애플리케이션 초기화
 app = Flask(__name__)
 
-# Google AI의 안전 필터 설정 (모든 카테고리 비활성화)
-# AI가 안전 문제로 답변을 거부하는 것을 방지합니다.
 safety_settings = [
     {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
     {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
@@ -20,7 +17,6 @@ safety_settings = [
 
 @app.route('/api/solver', methods=['POST', 'OPTIONS'])
 def solve_captcha():
-    # 브라우저가 보내는 CORS Preflight 요청(OPTIONS)에 대한 응답 처리
     if request.method == 'OPTIONS':
         headers = {
             'Access-Control-Allow-Origin': '*',
@@ -29,37 +25,29 @@ def solve_captcha():
         }
         return ('', 204, headers)
 
-    # 모든 실제 응답에 CORS 헤더를 포함하여 브라우저의 접근을 허용
     headers = { 'Access-Control-Allow-Origin': '*' }
     
     try:
-        # 1. 환경 변수에서 Google API 키를 안전하게 불러옵니다.
         api_key = os.environ.get("GOOGLE_API_KEY")
         if not api_key:
             raise ValueError("GOOGLE_API_KEY 환경 변수가 설정되지 않았습니다.")
         genai.configure(api_key=api_key)
 
-        # 2. 확장 프로그램이 보낸 JSON 데이터를 수신합니다.
         data = request.get_json()
         if not data or 'imageUrl' not in data or 'questionText' not in data:
             raise ValueError("imageUrl과 questionText가 요청에 포함되지 않았습니다.")
         
         image_url = data['imageUrl']
         question_text = data['questionText']
-        
-        # 3. 확장 프로그램 UI에서 사용자가 선택한 모델 이름을 받아옵니다.
-        # 만약 정보가 없다면, 'gemini-1.5-flash-latest'를 기본값으로 사용합니다.
+
         model_name = data.get('model', 'gemini-1.5-flash-latest')
 
-        # 4. 전달받은 모델 이름과 안전 설정으로 AI 모델을 생성합니다.
         model = genai.GenerativeModel(model_name, safety_settings=safety_settings)
-        
-        # 5. 이미지 URL에서 이미지를 다운로드하고 처리합니다.
+
         response = requests.get(image_url)
-        response.raise_for_status() # HTTP 에러가 있으면 예외 발생
+        response.raise_for_status()
         img = Image.open(BytesIO(response.content))
 
-        # 6. 두 가지 문제 유형과 모든 예외 케이스를 처리하는 최종 프롬프트를 구성합니다.
         prompt = f"""
         당신은 시각적 CAPTCHA를 해결하는 초정밀 AI 전문가입니다. 당신의 임무는 '빈칸' 문제의 정답률을 100%로 만드는 것입니다.
 
