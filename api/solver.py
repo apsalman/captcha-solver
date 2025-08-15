@@ -33,15 +33,32 @@ def solve_captcha():
         image_url = data['imageUrl']
         question_text = data['questionText']
 
-        # --- 여기가 수정된 부분입니다 ---
-        # 더 이상 사용되지 않는 'gemini-pro-vision' 대신, 최신 비전 모델 이름을 사용합니다.
-        model = genai.GenerativeModel('gemini-1.5-flash-latest') 
+        model = genai.GenerativeModel('gemini-1.5-flash-latest')
         
         response = requests.get(image_url)
         response.raise_for_status()
         img = Image.open(BytesIO(response.content))
 
-        prompt = f"당신은 CAPTCHA 해결 전문가입니다. 질문: \"{question_text}\". 주어진 이미지에서 질문의 패턴에 맞는 단어를 찾고, 빈칸에 들어갈 글자만 정확하게 응답하세요. 다른 설명은 절대 추가하지 마세요. 예를 들어, 질문이 '[빈칸]나은행'이고 이미지에 '하나은행'이 있다면 '하'라고만 대답해야 합니다."
+        # --- 여기가 수정된 부분입니다: AI를 더 똑똑하게 만드는 새로운 프롬프트 ---
+        prompt = f"""
+        당신은 OCR과 추론을 사용하는 CAPTCHA 해결 전문가입니다.
+        주어진 질문과 지도 이미지를 보고, '빈칸'에 들어갈 글자만 정확하게 찾아내세요.
+
+        **작업 규칙:**
+        1. 질문 텍스트에서 '빈칸'의 위치와 앞뒤 글자를 파악합니다. ('문제'와 같은 불필요한 단어는 무시하세요.)
+        2. 지도 이미지에서 질문의 패턴과 일치하는 전체 단어를 찾습니다. (예: '광진', '라'가 보이면 '광진빌라'를 찾습니다.)
+        3. 찾아낸 전체 단어에서 질문에 주어진 부분을 제외하여 '빈칸'에 들어갈 글자를 알아냅니다.
+        4. 오직 '빈칸'에 들어갈 글자만 응답해야 합니다. 다른 설명, 따옴표, 줄바꿈은 절대 포함하지 마세요.
+
+        **다양한 질문 유형 예시:**
+        - 질문이 "광진 빈칸 라" 이고 이미지에 "광진빌라"가 있다면, 정답은 "빌" 입니다.
+        - 질문이 "문제 빈칸 원빌딩" 이고 이미지에 "청원빌딩"이 있다면, 정답은 "청" 입니다.
+        - 질문이 "이화산업 빈칸" 이고 이미지에 "이화산업빌딩"이 있다면, 정답은 "빌딩" 입니다.
+        - 질문이 "빈칸 나은행" 이고 이미지에 "하나은행"이 있다면, 정답은 "하" 입니다.
+
+        **--- 현재 문제 ---**
+        질문: "{question_text}"
+        """
 
         api_response = model.generate_content([prompt, img])
         answer = api_response.text.strip()
