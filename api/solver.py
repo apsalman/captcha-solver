@@ -4,7 +4,7 @@ import google.generativeai as genai
 import requests
 from PIL import Image
 from io import BytesIO
-import traceback # 에러 상세 추적을 위해 추가
+import traceback
 
 app = Flask(__name__)
 
@@ -21,13 +21,11 @@ def solve_captcha():
     headers = { 'Access-Control-Allow-Origin': '*' }
     
     try:
-        # 1. API 키 확인
         api_key = os.environ.get("GOOGLE_API_KEY")
         if not api_key:
             raise ValueError("GOOGLE_API_KEY 환경 변수가 설정되지 않았습니다.")
         genai.configure(api_key=api_key)
 
-        # 2. 요청 데이터 확인
         data = request.get_json()
         if not data or 'imageUrl' not in data or 'questionText' not in data:
             raise ValueError("imageUrl과 questionText가 요청에 포함되지 않았습니다.")
@@ -35,8 +33,10 @@ def solve_captcha():
         image_url = data['imageUrl']
         question_text = data['questionText']
 
-        # 3. 모델 생성 및 API 호출
-        model = genai.GenerativeModel('gemini-pro-vision')
+        # --- 여기가 수정된 부분입니다 ---
+        # 더 이상 사용되지 않는 'gemini-pro-vision' 대신, 최신 비전 모델 이름을 사용합니다.
+        model = genai.GenerativeModel('gemini-1.5-flash-latest') 
+        
         response = requests.get(image_url)
         response.raise_for_status()
         img = Image.open(BytesIO(response.content))
@@ -49,9 +49,7 @@ def solve_captcha():
         return jsonify({"answer": answer}), 200, headers
 
     except Exception as e:
-        # 에러 발생 시, Vercel 로그에 상세 내용을 출력하고 클라이언트에게도 에러 메시지를 전달합니다.
         print("--- ERROR ---")
-        print(traceback.format_exc()) # Vercel 로그에 전체 에러 스택 출력
+        print(traceback.format_exc())
         print("-------------")
-        # 클라이언트에게는 간단한 에러 타입과 메시지를 전달
         return jsonify({"error": f"서버 내부 오류: {type(e).__name__} - {str(e)}"}), 500, headers
